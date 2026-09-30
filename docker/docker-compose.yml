@@ -1,0 +1,103 @@
+# Demo stack: PostgreSQL pre-filled with synthetic (Faker) data, plus the scanner.
+#
+#   cp .env.example .env
+#   docker compose --env-file .env -f docker/docker-compose.yml up -d --build postgres seed
+#   docker compose --env-file .env -f docker/docker-compose.yml run --rm scanner \
+#       scan --source postgres --table users --columns email,card_number
+#
+# Optional local S3 (moto) for the S3 scanner:
+#   docker compose --env-file .env -f docker/docker-compose.yml --profile s3 up -d s3 seed-s3
+#
+# All credentials come from .env (git-ignored); nothing secret lives in this file.
+
+name: dcs-demo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PGDATABASE:?set PGDATABASE in .env}
+      POSTGRES_USER: ${PGUSER:?set PGUSER in .env}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?set PGPASSWORD in .env}
+    ports:
+      # Bound to localhost only: the demo database must not be reachable from the network.
+      - "127.0.0.1:${PGPORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Creates the demo tables and fills them with fabricated people (Faker, fixed seed).
+  seed:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: seed
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${PGDATABASE}
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+    command: ["--rows", "${SEED_ROWS:-200}", "postgres"]
+    restart: "no"
+
+  # The scanner CLI. Run it with `docker compose run --rm scanner scan ...`.
+  scanner:
+    profiles: ["tools"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: scanner
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${PGDATABASE}
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+      # pass-through: only set inside the container when defined in .env or the shell
+      AWS_ACCESS_KEY_ID:
+      AWS_SECRET_ACCESS_KEY:
+      AWS_SESSION_TOKEN:
+      AWS_PROFILE:
+      AWS_DEFAULT_REGION:
+    volumes:
+      - ../config:/work/config:ro
+      - ../sample_data:/work/sample_data:ro
+      - ../reports:/work/reports
+    command: ["scan", "--source", "postgres", "--table", "users", "--columns", "email,card_number"]
+
+  # Optional S3-compatible mock (moto) so the S3 scanner can be tried without an AWS account.
+  s3:
+    profiles: ["s3"]
+    image: motoserver/moto:latest
+    ports:
+      - "127.0.0.1:5000:5000"
+
+  seed-s3:
+    profiles: ["s3"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: seed
+    depends_on:
+      - s3
+    environment:
+      AWS_ACCESS_KEY_ID:
+      AWS_SECRET_ACCESS_KEY:
+      AWS_DEFAULT_REGION:
+    command: ["--rows", "${SEED_ROWS:-200}", "s3", "--bucket", "demo-bucket", "--prefix", "uploads/", "--endpoint-url", "http://s3:5000"]
+    restart: "no"
+
+volumes:
+  pgdata:
