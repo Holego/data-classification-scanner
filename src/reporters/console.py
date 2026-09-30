@@ -81,13 +81,13 @@ class ConsoleReporter(BaseReporter):
         c.print(f"Duration:  {result.duration_seconds:.2f}s")
 
         scanned = [
-            ("files", stats.files_scanned),
-            ("lines", stats.lines_scanned),
-            ("S3 objects", stats.objects_scanned),
-            ("tables", stats.tables_scanned),
-            ("rows", stats.rows_scanned),
+            ("file", stats.files_scanned),
+            ("S3 object", stats.objects_scanned),
+            ("table", stats.tables_scanned),
+            ("line", stats.lines_scanned),
+            ("row", stats.rows_scanned),
         ]
-        parts = [f"{value:,} {label}" for label, value in scanned if value]
+        parts = [f"{value:,} {label}{'' if value == 1 else 's'}" for label, value in scanned if value]
         if stats.bytes_scanned:
             parts.append(_human_bytes(stats.bytes_scanned))
         c.print(f"Scanned:   {', '.join(parts) or 'nothing'}")

@@ -22,7 +22,7 @@ _SCHEMES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     ("amex", re.compile(r"3[47]\d{13}")),
     ("discover", re.compile(r"(?:6011|65\d{2}|64[4-9]\d)\d{12}")),
-    ("diners", re.compile(r"3(?:0[0-5]|[68]\d)\d{11}")),
+    ("diners", re.compile(r"3(?:0[0-5]|[689]\d)\d{11}")),
     ("jcb", re.compile(r"35(?:2[89]|[3-8]\d)\d{12}(?:\d{1,3})?")),
     ("unionpay", re.compile(r"62\d{14,17}")),
     ("maestro", re.compile(r"(?:5018|5020|5038|5893|6304|6759|676[1-3])\d{8,15}")),
