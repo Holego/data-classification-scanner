@@ -13,6 +13,7 @@ from .models import RiskLevel
 DEFAULT_EXTENSIONS = (".txt", ".csv", ".json", ".log", ".sql")
 SOURCE_TYPES = ("file", "postgres", "s3")
 OUTPUT_FORMATS = ("console", "json", "csv")
+EXECUTORS = ("thread", "process")
 
 # Keys that would put a credential into the config file. Credentials belong in
 # the environment (PG*/AWS_*) or the AWS credentials chain, never on disk here.
@@ -83,6 +84,7 @@ class OutputConfig:
 @dataclass
 class AppConfig:
     threads: int = 4
+    executor: str = "thread"  # "thread" or "process" (local files only)
     detectors: dict[str, dict[str, Any]] = field(default_factory=dict)
     risk_levels: dict[str, RiskLevel] = field(default_factory=dict)
     file: FileSourceConfig | None = None
@@ -123,8 +125,11 @@ def parse_config(raw: Any) -> AppConfig:
     })
     cfg = AppConfig()
 
-    scan = _mapping(root.get("scan"), "scan", allowed={"threads"})
+    scan = _mapping(root.get("scan"), "scan", allowed={"threads", "executor"})
     cfg.threads = _int(scan.get("threads", cfg.threads), "scan.threads", minimum=1)
+    cfg.executor = str(scan.get("executor", cfg.executor)).lower()
+    if cfg.executor not in EXECUTORS:
+        raise ConfigError(f"scan.executor must be one of {list(EXECUTORS)}")
 
     detectors = _mapping(root.get("detectors"), "detectors")
     for name, options in detectors.items():

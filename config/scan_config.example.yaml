@@ -10,7 +10,8 @@
 version: 1
 
 scan:
-  threads: 8            # worker threads for files, S3 objects and tables
+  threads: 8            # workers for files, S3 objects and tables
+  executor: thread      # "process" spreads local-file regex work over several cores
 
 # --- What to look for ---------------------------------------------------------
 detectors:

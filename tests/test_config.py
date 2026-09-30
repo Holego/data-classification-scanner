@@ -23,7 +23,7 @@ def test_defaults_when_no_file():
     cfg = load_config(None)
     assert isinstance(cfg, AppConfig)
     assert cfg.enabled_sources() == []
-    assert cfg.threads == 4
+    assert cfg.threads == 4 and cfg.executor == "thread"
 
 
 def test_empty_file_gives_defaults(tmp_path):
@@ -82,6 +82,7 @@ def test_credentials_in_the_config_are_rejected(source):
         ({"bogus": 1}, "unknown key"),
         ({"scan": {"threads": 0}}, "scan.threads"),
         ({"scan": {"threads": "many"}}, "scan.threads"),
+        ({"scan": {"executor": "gpu"}}, "scan.executor"),
         ({"sources": {"ftp": {}}}, "unknown key"),
         ({"sources": {"file": {"paths": "a", "typo": 1}}}, "unknown key"),
         ({"sources": {"file": {"max_file_size_mb": -1}}}, "positive number"),

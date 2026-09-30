@@ -9,11 +9,12 @@ from pathlib import Path
 from typing import Sequence
 
 import click
-from dotenv import find_dotenv, load_dotenv
+from dotenv import load_dotenv
 from rich.console import Console
 
 from . import __version__
 from .config import (
+    EXECUTORS,
     OUTPUT_FORMATS,
     SOURCE_TYPES,
     AppConfig,
@@ -76,7 +77,9 @@ def list_detectors() -> None:
 @click.option("--report-dir", type=click.Path(file_okay=False, path_type=Path),
               help="Directory for json/csv reports (default: ./reports).")
 @click.option("--report-name", help="Base file name for json/csv reports.")
-@click.option("--threads", type=click.IntRange(min=1), help="Worker threads.")
+@click.option("--threads", type=click.IntRange(min=1), help="Worker threads (or processes, see --executor).")
+@click.option("--executor", type=click.Choice(EXECUTORS),
+              help="thread (default) or process: use processes for CPU-bound scans of local files.")
 @click.option("--dry-run", is_flag=True, help="List what would be scanned without reading any content.")
 @click.option("--fail-on", type=click.Choice([lvl.value.lower() for lvl in RiskLevel]),
               help="Exit with status 3 if a finding of at least this risk exists.")
@@ -97,6 +100,7 @@ def scan(
     report_dir: Path | None,
     report_name: str | None,
     threads: int | None,
+    executor: str | None,
     dry_run: bool,
     fail_on: str | None,
     max_rows: int | None,
@@ -110,13 +114,13 @@ def scan(
     scanner scan --source s3 --bucket my-bucket --prefix uploads/
     scanner scan --all --config config/scan_config.yaml
     """
-    load_dotenv(find_dotenv(usecwd=True))
+    load_dotenv(Path.cwd() / ".env")  # real environment variables take precedence
     try:
         config = load_config(config_path)
         selected = resolve_sources(
             config, sources, scan_all, paths, tables, columns, schema, bucket, prefix
         )
-        config = apply_overrides(config, threads, detector_names, max_rows)
+        config = apply_overrides(config, threads, detector_names, max_rows, executor)
     except ConfigError as exc:
         raise click.UsageError(str(exc)) from None
 
@@ -232,10 +236,16 @@ def _table_spec(value: str, columns: str | None) -> TableSpec:
 
 
 def apply_overrides(
-    config: AppConfig, threads: int | None, detector_names: str | None, max_rows: int | None
+    config: AppConfig,
+    threads: int | None,
+    detector_names: str | None,
+    max_rows: int | None,
+    executor: str | None = None,
 ) -> AppConfig:
     if threads:
         config.threads = threads
+    if executor:
+        config.executor = executor
     if max_rows is not None:
         config.output = dataclasses.replace(config.output, max_rows=max_rows)
     if detector_names:

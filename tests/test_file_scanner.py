@@ -80,7 +80,7 @@ def test_csv_without_header_names_columns_by_position(engine, classifier, tmp_pa
 
 
 def test_csv_with_semicolons_and_multiline_fields(engine, classifier, tmp_path):
-    (tmp_path / "eu.csv").write_text(f'id;note;email\n1;"line one\nline two";a@example.com\n2;x;b@example.org\n')
+    (tmp_path / "eu.csv").write_text('id;note;email\n1;"line one\nline two";a@example.com\n2;x;b@example.org\n')
     _, findings = scan(engine, classifier, tmp_path)
     assert [(f.location.line, f.location.column_name) for f in findings] == [(2, "email"), (4, "email")]
 
@@ -125,7 +125,7 @@ def test_files_over_the_size_limit_are_skipped(engine, classifier, tmp_path):
 
 def test_utf16_and_bom_files_are_decoded(engine, classifier, tmp_path):
     (tmp_path / "win.txt").write_bytes(("﻿" + f"card {CARD}\r\n").encode("utf-16-le"))
-    (tmp_path / "bom.txt").write_bytes(b"\xef\xbb\xbf" + f"mail a@example.com\n".encode())
+    (tmp_path / "bom.txt").write_bytes(b"\xef\xbb\xbf" + "mail a@example.com\n".encode())
     _, findings = scan(engine, classifier, tmp_path)
     assert {f.data_type for f in findings} == {"credit_card", "email"}
 
@@ -228,3 +228,21 @@ def test_sensitive_data_in_file_names_is_masked_in_the_source(engine, classifier
     _, findings = scan(engine, classifier, tmp_path)
     assert "jane.roe" not in findings[0].source
     assert findings[0].source.endswith("/e******@example.com.txt")
+
+
+def test_process_executor_gives_the_same_results_as_threads(engine, classifier, tmp_path):
+    for i in range(12):
+        (tmp_path / f"f{i:02d}.csv").write_text(f"id,card,mail\n{i},{make_luhn('4', 16, seed=i)},u{i}@example.com\n")
+    (tmp_path / "bin.txt").write_bytes(b"\x00\x01\x02")
+
+    def run_with(executor, threads):
+        cfg = FileSourceConfig(paths=[str(tmp_path)])
+        sc = FileScanner(engine, classifier, cfg, PathMatcher(), threads, executor=executor)
+        return sc, sorted(sc.scan(), key=lambda f: f.sort_key())
+
+    thread_scanner, by_threads = run_with("thread", 2)
+    process_scanner, by_processes = run_with("process", 2)
+    assert by_processes == by_threads and len(by_processes) == 24
+    assert process_scanner.stats.files_scanned == thread_scanner.stats.files_scanned == 12
+    assert process_scanner.stats.skipped == thread_scanner.stats.skipped == 1
+    assert process_scanner.stats.lines_scanned == thread_scanner.stats.lines_scanned == 24

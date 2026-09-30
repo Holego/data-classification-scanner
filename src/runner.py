@@ -38,7 +38,12 @@ class ScanRunner:
         allow = cfg.allowlist
         if source == "file" and cfg.file:
             return FileScanner(
-                self.engine, self.classifier, cfg.file, PathMatcher(allow.paths), cfg.threads
+                self.engine,
+                self.classifier,
+                cfg.file,
+                PathMatcher(allow.paths),
+                cfg.threads,
+                executor=cfg.executor,
             )
         if source == "postgres" and cfg.postgres:
             return PostgresScanner(

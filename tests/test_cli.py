@@ -8,8 +8,6 @@ from moto import mock_aws
 
 from dcscanner.cli import cli
 
-from conftest import make_luhn
-
 CARD = "4111 1111 1111 1111"
 EMAIL = "jane.roe@example.com"
 SSN = "123-45-6789"
@@ -126,6 +124,13 @@ output: {{formats: [json], directory: cfg-reports, name: fromcfg}}
     assert doc["summary"]["total_findings"] == 2  # notes.txt was allowlisted
 
 
+def test_process_executor_flag(runner, data):
+    result = invoke(runner, "scan", "--source", "file", "--path", str(data), "--executor", "process", "--threads", "2")
+    assert result.exit_code == 0 and "3 total" in result.stdout
+    for raw in RAW_VALUES:
+        assert raw not in result.output
+
+
 def test_cli_flags_override_the_config(runner, data, tmp_path):
     config = tmp_path / "scan.yaml"
     config.write_text("sources: {file: {paths: ['/definitely/not/here']}}\n")
@@ -233,4 +238,8 @@ def test_detectors_command_and_version(runner):
 
 
 def test_module_entry_point():
-    from dcscanner.__main__ import main  # noqa: F401
+    import subprocess
+    import sys
+
+    completed = subprocess.run([sys.executable, "-m", "dcscanner", "--version"], capture_output=True, text=True)
+    assert completed.returncode == 0 and "0.1.0" in completed.stdout

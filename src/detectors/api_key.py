@@ -36,6 +36,10 @@ _PROVIDER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("private_key", re.compile(r"-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----")),
 )
 
+# One cheap scan that tells whether any provider pattern above can match at all;
+# most lines contain none of these markers, so the eight patterns are skipped.
+_PROVIDER_HINT = re.compile(r"AKIA|ASIA|gh[pousr]_|github_pat_|xox[abprs]-|[sr]k_live_|AIza|eyJ|-----BEGIN")
+
 _CANDIDATE = re.compile(r"(?<![A-Za-z0-9+/_\-])[A-Za-z0-9+/_\-]{20,}={0,2}(?![A-Za-z0-9+/_\-])")
 _HEX_ONLY = re.compile(r"[0-9a-fA-F]+")
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -81,10 +85,11 @@ class ApiKeyDetector(BaseDetector):
 
     def detect(self, text: str) -> Iterator[Match]:
         taken: list[tuple[int, int]] = []
-        for subtype, pattern in _PROVIDER_PATTERNS:
-            for m in pattern.finditer(text):
-                taken.append(m.span())
-                yield Match(self.name, m.group(0), m.start(), m.end(), subtype)
+        if _PROVIDER_HINT.search(text):
+            for subtype, pattern in _PROVIDER_PATTERNS:
+                for m in pattern.finditer(text):
+                    taken.append(m.span())
+                    yield Match(self.name, m.group(0), m.start(), m.end(), subtype)
 
         if not self.detect_generic or len(text) < self.min_length:
             return

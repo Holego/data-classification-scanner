@@ -19,6 +19,22 @@ from .text import BinaryContentError, decode_lines, read_chunks, scan_text_sourc
 
 log = logging.getLogger(__name__)
 
+_WORKER: FileScanner | None = None
+
+
+def _init_worker(scanner: FileScanner, log_level: str) -> None:
+    """Runs once in each worker process (spawned processes start with no logging setup)."""
+    from ..logging_utils import configure_logging
+
+    global _WORKER
+    _WORKER = scanner
+    configure_logging(log_level)
+
+
+def _scan_in_worker(candidate: _Candidate) -> TargetResult:
+    assert _WORKER is not None
+    return _WORKER._scan_file(candidate)
+
 
 @dataclass(frozen=True)
 class _Candidate:
@@ -39,9 +55,11 @@ class FileScanner(BaseScanner):
         config: FileSourceConfig,
         allowlist: PathMatcher | None = None,
         threads: int = 1,
+        executor: str = "thread",
     ) -> None:
         super().__init__(engine, classifier, threads)
         self.config = config
+        self.executor = executor
         self.allowlist = allowlist or PathMatcher()
         self._max_bytes = int(config.max_file_size_mb * 1024 * 1024)
 
@@ -101,7 +119,20 @@ class FileScanner(BaseScanner):
     # -- scanning --------------------------------------------------------
 
     def scan(self) -> Iterator[Finding]:
-        for result in bounded_map(self._scan_file, self._candidates(), self.threads):
+        if self.executor == "process" and self.threads > 1:
+            # Regex matching is CPU-bound and holds the GIL; separate processes
+            # are what actually use several cores on local files.
+            results = bounded_map(
+                _scan_in_worker,
+                self._candidates(),
+                self.threads,
+                processes=True,
+                initializer=_init_worker,
+                initargs=(self, logging.getLevelName(logging.getLogger().level)),
+            )
+        else:
+            results = bounded_map(self._scan_file, self._candidates(), self.threads)
+        for result in results:
             self.stats.merge(result.stats)
             yield from result.findings
 
