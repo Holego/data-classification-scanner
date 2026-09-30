@@ -65,8 +65,20 @@ class Location:
             "row_id": self.row_id,
         }
 
-    def describe(self) -> str:
-        parts: list[str] = []
+    def describe(self, compact: bool = False) -> str:
+        """Human-readable position; ``compact`` is the console table form."""
+        if compact:
+            parts: list[str] = []
+            if self.row is not None:
+                parts.append(f"row {self.row}" + (f" id={self.row_id}" if self.row_id else ""))
+            if self.line is not None:
+                parts.append(f"{self.line}:{self.offset}" if self.offset else str(self.line))
+            elif self.offset is not None and self.row is None:
+                parts.append(f":{self.offset}")
+            if self.column_name is not None:
+                parts.append(f"[{self.column_name}]")
+            return " ".join(parts) or "-"
+        parts = []
         if self.row is not None:
             parts.append(f"row {self.row}" + (f" (id={self.row_id})" if self.row_id else ""))
         if self.line is not None:
