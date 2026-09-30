@@ -33,6 +33,20 @@ def is_valid_email(candidate: str) -> bool:
     return labels[-1].lower() in VALID_TLDS
 
 
+def _longest_valid_prefix(candidate: str) -> str | None:
+    """The candidate itself, or the longest prefix of its domain labels that is a
+    valid address - so ``jane@example.com.txt`` (an export named after its
+    owner) still yields ``jane@example.com`` while ``logo@2x.png`` yields nothing."""
+    local, _, domain = candidate.rpartition("@")
+    labels = domain.split(".")
+    while len(labels) >= 2:
+        attempt = f"{local}@{'.'.join(labels)}"
+        if is_valid_email(attempt):
+            return attempt
+        labels.pop()
+    return None
+
+
 def mask_email(value: str) -> str:
     """``jane.doe@example.com`` -> ``j***@example.com``."""
     local, _, domain = value.rpartition("@")
@@ -53,12 +67,12 @@ class EmailDetector(BaseDetector):
         if "@" not in text:
             return
         for m in _CANDIDATE.finditer(text):
-            value = m.group(0)
-            if not is_valid_email(value):
+            value = _longest_valid_prefix(m.group(0))
+            if value is None:
                 continue
             if self._ignore and value.rpartition("@")[2].lower() in self._ignore:
                 continue
-            yield Match(self.name, value, m.start(), m.end())
+            yield Match(self.name, value, m.start(), m.start() + len(value))
 
     def mask(self, value: str, subtype: str | None = None) -> str:
         return mask_email(value)

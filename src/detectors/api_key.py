@@ -43,6 +43,15 @@ _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}
 GENERIC = "high_entropy_string"
 
 
+def _is_slug(token: str) -> bool:
+    """``my-long-descriptive-name-2024``: separators between plain words/numbers."""
+    parts = re.split(r"[-_]", token)
+    if len(parts) < 3:
+        return False
+    wordish = sum(1 for p in parts if p.isdigit() or (p.isalpha() and (p.islower() or p.isupper() or p.istitle())))
+    return wordish / len(parts) >= 0.6
+
+
 def _is_camel_case(token: str) -> bool:
     """CamelCase words put a lowercase letter after almost every capital;
     random tokens do so only about 40% of the time."""
@@ -95,7 +104,7 @@ class ApiKeyDetector(BaseDetector):
         has_upper = any(c.isupper() for c in token)
         if not has_digit or not (has_lower or has_upper):
             return False
-        if token.count("-") + token.count("_") > len(token) // 3:
+        if _is_slug(token) or token.count("-") + token.count("_") > len(token) // 3:
             return False  # slug-like: my-long-descriptive-name-2024
         if _is_camel_case(token):
             return False  # identifiers such as getUserAccountDetails2

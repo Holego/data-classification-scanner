@@ -60,20 +60,19 @@ def mask_card_number(value: str) -> str:
     """``4111 1111 1111 1111`` -> ``**** **** **** 1111`` (last four kept)."""
     digits = "".join(ch for ch in value if ch.isdigit())
     masked = "*" * max(len(digits) - 4, 0) + digits[-4:]
-    if len(digits) == 15:
+    if len(digits) == 15:  # American Express prints 4-6-5
         sizes = (4, 6, 5)
-    elif len(digits) == 14:
+    elif len(digits) == 14:  # Diners Club prints 4-6-4
         sizes = (4, 6, 4)
-    else:
-        sizes = tuple([4] * (len(digits) // 4 + 1))
+    else:  # groups of four stars, then the last four digits as their own group
+        hidden = len(digits) - 4
+        sizes = tuple([4] * (hidden // 4) + ([hidden % 4] if hidden % 4 else []) + [4])
     parts: list[str] = []
     pos = 0
     for size in sizes:
-        chunk = masked[pos : pos + size]
-        if chunk:
-            parts.append(chunk)
+        parts.append(masked[pos : pos + size])
         pos += size
-    return " ".join(parts)
+    return " ".join(part for part in parts if part)
 
 
 class CreditCardDetector(BaseDetector):

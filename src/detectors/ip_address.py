@@ -41,6 +41,8 @@ class IPAddressDetector(BaseDetector):
             addr = ipaddress.ip_address(value)
         except ValueError:
             return None
+        if addr.is_unspecified:  # "::" (also "Python :: 3") and 0.0.0.0 carry no information
+            return None
         if self._ignore_private and (addr.is_private or addr.is_loopback or addr.is_link_local):
             return None
         return addr
