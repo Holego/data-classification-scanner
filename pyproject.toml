@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-classification-scanner"
+version = "0.1.0"
+description = "Data discovery and classification scanner for PII, payment data and secrets"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Holego" }]
+keywords = ["dlp", "data-security", "pii", "pci", "data-discovery", "classification"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Security",
+    "Environment :: Console",
+]
+dependencies = [
+    "click>=8.1",
+    "rich>=13.0",
+    "PyYAML>=6.0",
+    "boto3>=1.28",
+    "psycopg[binary]>=3.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "moto[s3,server]>=5.0",
+    "Faker>=24.0",
+]
+
+[project.scripts]
+scanner = "dcscanner.cli:main"
+
+# The import package is `dcscanner`; its sources live in ./src
+# (src/detectors, src/scanners, src/classifiers, src/reporters).
+[tool.setuptools]
+package-dir = { "dcscanner" = "src" }
+packages = [
+    "dcscanner",
+    "dcscanner.detectors",
+    "dcscanner.scanners",
+    "dcscanner.classifiers",
+    "dcscanner.reporters",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "integration: needs a live PostgreSQL (set PGHOST/PGDATABASE/PGUSER/PGPASSWORD)",
+]

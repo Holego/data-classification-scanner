@@ -1,0 +1,42 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+scan_config.yaml
+config/*.local.yaml
+*.pem
+*.key
+.aws/
+
+# Data that may contain real sensitive values
+/data/
+/dumps/
+/sample_data/
+/reports/
+*.dump
+*.pgdump
+*.bak
+*.sql.gz
+*.csv.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+.venv/
+venv/
+
+# Tooling
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
