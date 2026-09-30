@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any, Callable, Mapping
 
 from .api_key import ApiKeyDetector
@@ -76,9 +77,20 @@ def build_engine(settings: Mapping[str, Mapping[str, Any]] | None = None) -> Det
     return DetectionEngine(build_detectors(settings))
 
 
+@lru_cache(maxsize=1)
 def build_redaction_engine() -> DetectionEngine:
-    """Engine used to scrub log output: every detector that is safe to run
-    on arbitrary text, independent of what the current scan has enabled."""
+    """Engine used to scrub log lines and source names.
+
+    Independent of what the current scan has enabled, and limited to
+    high-confidence detectors (no generic entropy heuristic) so that ordinary
+    identifiers such as random object keys are left readable.
+    """
     return build_engine(
-        {name: {"enabled": True} for name in ("credit_card", "email", "national_id", "api_key", "phone")}
+        {
+            "credit_card": {"enabled": True},
+            "email": {"enabled": True},
+            "national_id": {"enabled": True},
+            "phone": {"enabled": True},
+            "api_key": {"enabled": True, "detect_generic": False},
+        }
     )
