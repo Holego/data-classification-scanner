@@ -1,0 +1,111 @@
+# Example configuration for `scanner scan --all --config config/scan_config.yaml`.
+# Copy to config/scan_config.yaml (git-ignored) and adjust.
+#
+# Credentials never go in this file:
+#   PostgreSQL  -> PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD (see .env.example)
+#   AWS S3      -> the standard AWS credentials chain (AWS_PROFILE, env vars, SSO, IAM role)
+# Loading a config that contains password/secret/token style keys under `sources`
+# is rejected.
+
+version: 1
+
+scan:
+  threads: 8            # worker threads for files, S3 objects and tables
+
+# --- What to look for ---------------------------------------------------------
+detectors:
+  credit_card:
+    enabled: true       # scheme prefix + Luhn checksum; always validated
+  email:
+    enabled: true       # regex + IANA top-level-domain check
+    ignore_domains: []  # e.g. [example.com, example.org] to skip documentation addresses
+  national_id:
+    enabled: true
+    # Built-in profiles: us_ssn, ca_sin, uk_nino, ru_inn, ru_snils, pl_pesel, br_cpf
+    profiles: [us_ssn]
+    # Any other country: supply your own regex. Optional keys:
+    #   validator        one of us_ssn, ca_sin, ru_inn, ru_snils, pl_pesel, br_cpf, luhn
+    #   keep_last        trailing characters left visible when masking (default 4)
+    #   context_keywords a keyword must appear within context_window characters
+    #                    (recommended for bare digit strings, which are otherwise noisy)
+    custom_patterns: []
+    #  - name: de_steuer_id
+    #    regex: '(?<!\d)\d{2} ?\d{3} ?\d{3} ?\d{3}(?!\d)'
+    #    keep_last: 3
+    #    context_keywords: [steuer-id, steueridentifikationsnummer]
+    #    context_window: 40
+  phone:
+    enabled: true
+  ip_address:
+    enabled: true
+    ignore_private: false
+  api_key:
+    enabled: true       # provider formats (AWS, GitHub, Slack, ...) + entropy heuristic
+    entropy_threshold: 4.0
+    min_length: 20
+    detect_generic: true
+
+# --- How findings are rated ---------------------------------------------------
+# Defaults: credit_card / national_id / api_key = HIGH, email / phone = MEDIUM,
+# ip_address = LOW. Override a whole type ("email") or a subtype ("national_id.uk_nino").
+classification:
+  risk_levels: {}
+  #  email: HIGH
+  #  ip_address: MEDIUM
+
+# --- Where to look ------------------------------------------------------------
+sources:
+  file:
+    enabled: true
+    paths:
+      - ./sample_data
+    extensions: [.txt, .csv, .json, .log, .sql]
+    max_file_size_mb: 100
+    follow_symlinks: false
+
+  postgres:
+    enabled: true
+    schema: public
+    batch_size: 1000    # rows per fetch from the server-side cursor
+    tables:
+      - name: users
+        columns: [email, phone, ssn, card_number]
+      - name: orders
+        columns: [notes]
+      - name: support_tickets          # no `columns`: every text/json column is scanned
+      - name: audit_log
+
+  s3:
+    enabled: false
+    bucket: my-bucket
+    prefix: uploads/
+    extensions: [.txt, .csv, .json, .log, .sql]
+    max_object_size_mb: 100
+    # region: eu-central-1
+    # endpoint_url: http://localhost:5000   # moto / MinIO / LocalStack (not a secret)
+    page_size: 1000
+
+# --- What to skip -------------------------------------------------------------
+# Anything matching is never opened, read or queried.
+allowlist:
+  paths:                # globs relative to each scan root; `**` crosses directories
+    - "**/node_modules/**"
+    - ".git"
+    - "*.min.json"
+    - "clean/**"
+  tables:               # schema.table or table, globs allowed
+    - audit_log
+  columns:              # schema.table.column, table.column or column
+    - "*.password_hash"
+  s3_keys:
+    - "**/*.tmp"
+    - "archive/**"
+
+# --- Reports ------------------------------------------------------------------
+output:
+  formats: [console, json]   # console | json | csv
+  directory: reports         # where json/csv reports are written
+  max_rows: 200              # rows shown in the console table (0 = all)
+
+logging:
+  level: WARNING             # DEBUG | INFO | WARNING | ERROR (values are always masked)
