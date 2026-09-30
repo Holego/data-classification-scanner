@@ -83,6 +83,11 @@ services:
     image: motoserver/moto:latest
     ports:
       - "127.0.0.1:5000:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:5000/moto-api/')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 
   seed-s3:
     profiles: ["s3"]
@@ -91,7 +96,8 @@ services:
       dockerfile: Dockerfile
       target: seed
     depends_on:
-      - s3
+      s3:
+        condition: service_healthy
     environment:
       AWS_ACCESS_KEY_ID:
       AWS_SECRET_ACCESS_KEY:
